@@ -1,0 +1,38 @@
+appId: com.ohmymqtt.app
+productName: Oh My MQTT
+directories:
+  output: dist-electron
+  buildResources: resources
+asar: true
+files:
+  - out
+  - "!node_modules"
+mac:
+  category: public.app-category.developer-tools
+  icon: resources/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  hardenedRuntime: true
+win:
+  icon: resources/icon.ico
+  target:
+    - nsis
+nsis:
+  deleteAppDataOnUninstall: false
+linux:
+  icon: resources/icon-linux.png
+  category: Development
+  target:
+    - AppImage
+    - deb
+publish:
+  - provider: github
+    owner: chapsaldduk
+    repo: oh-my-mqtt

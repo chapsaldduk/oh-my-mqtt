@@ -1,0 +1,59 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+docs
+.env
+
+# Electron build output
+out
+release
+build
+dist-electron
+
+# Vite cache
+.vite
+
+# Electron packaged apps
+*.dmg
+*.zip
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.pkg
+*.mas
+*.app
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Custom
+.bkit/
+.claude/
+todo/
+infra/
+
+# Dev notes
+developed.md
+RELEASE_NOTES.md
+
+docs/

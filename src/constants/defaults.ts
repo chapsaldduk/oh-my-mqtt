@@ -1,0 +1,13 @@
+export const MAX_MESSAGES = 100_000;
+export const DEFAULT_PORT_MQTT = 1883;
+export const DEFAULT_PORT_MQTTS = 8883;
+export const DEFAULT_PORT_WS = 8083;
+export const DEFAULT_PORT_WSS = 8084;
+export const DEFAULT_PATH = '/mqtt';
+export const DEFAULT_KEEPALIVE = 60;
+export const DEFAULT_QOS = 0 as const;
+export const RECONNECT_BASE_DELAY = 1000;
+export const RECONNECT_MAX_DELAY = 30000;
+export const TOPIC_TREE_DEBOUNCE_MS = 100;
+export const STATS_UPDATE_INTERVAL_MS = 1000;
+export const MESSAGE_BATCH_INTERVAL_MS = 16; // ~60fps
