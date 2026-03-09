@@ -13,13 +13,35 @@ MQTT Explorer를 대체하는 고성능 Electron 데스크톱 앱. 실시간 MQT
 - **통계 대시보드**: 메시지 속도, 토픽별 통계, QoS 분포
 - **네이티브 파일 저장**: 데이터를 JSON/CSV로 내보내기
 
+## 설치
+
+### macOS (Homebrew)
+
+```bash
+brew tap chapsaldduk/oh-my-mqtt
+brew install --cask --no-quarantine oh-my-mqtt
+```
+
+### 직접 다운로드
+
+[GitHub Releases](https://github.com/chapsaldduk/oh-my-mqtt/releases)에서 플랫폼별 설치 파일을 다운로드할 수 있습니다.
+
+| 플랫폼 | 파일 |
+| ------ | ---- |
+| macOS (Apple Silicon) | `.dmg` (arm64) |
+| macOS (Intel) | `.dmg` (x64) |
+| Windows | `.exe` |
+| Linux | `.AppImage` / `.deb` |
+
+> **macOS 참고**: Homebrew 외 직접 다운로드 시 Gatekeeper 경고가 나타날 수 있습니다. 터미널에서 `xattr -cr /Applications/Oh\ My\ MQTT.app` 실행 후 앱을 열어주세요.
+
 ## 시스템 요구사항
 
 - **macOS 12 이상** (Apple Silicon, Intel)
-- **Node.js 18+**
-- **pnpm**
+- **Windows 10 이상**
+- **Linux** (Ubuntu 20.04+)
 
-## 설치 및 개발
+## 개발
 
 ### 의존성 설치
 
