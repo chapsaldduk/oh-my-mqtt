@@ -1,16 +1,24 @@
-import mqtt, { type MqttClient, type IClientOptions } from 'mqtt';
-import type { ConnectionProfile, Subscription } from '@/types/mqtt.ts';
-import { RECONNECT_BASE_DELAY, RECONNECT_MAX_DELAY } from '@/constants/defaults.ts';
+import mqtt, { type MqttClient, type IClientOptions } from "mqtt";
+import type { ConnectionProfile, Subscription } from "@/types/mqtt.ts";
+import {
+  RECONNECT_BASE_DELAY,
+  RECONNECT_MAX_DELAY,
+} from "@/constants/defaults.ts";
 
 export type MqttEventHandler = {
   onConnect: () => void;
   onDisconnect: () => void;
   onError: (error: Error) => void;
   onReconnecting: (attempt: number, delay: number) => void;
-  onMessage: (topic: string, payload: Uint8Array, packet: { qos: number; retain: boolean }) => void;
+  onMessage: (
+    topic: string,
+    payload: Uint8Array,
+    packet: { qos: number; retain: boolean },
+  ) => void;
 };
 
-const isElectron = (): boolean => typeof window !== 'undefined' && window.electronAPI !== undefined;
+const isElectron = (): boolean =>
+  typeof window !== "undefined" && window.electronAPI !== undefined;
 
 // --- IPC Mode (Electron) ---
 
@@ -44,7 +52,11 @@ function ensureIpcListeners() {
   });
 }
 
-function connectViaIpc(connectionId: string, profile: ConnectionProfile, handlers: MqttEventHandler) {
+function connectViaIpc(
+  connectionId: string,
+  profile: ConnectionProfile,
+  handlers: MqttEventHandler,
+) {
   ensureIpcListeners();
   ipcHandlers.set(connectionId, handlers);
   window.electronAPI!.mqtt.connect(connectionId, profile);
@@ -98,14 +110,25 @@ function clearReconnect(connectionId: string) {
 }
 
 function buildUrl(profile: ConnectionProfile): string {
+  const useProxy =
+    !isElectron() &&
+    (profile.protocol === "mqtt" || profile.protocol === "mqtts");
+
+  if (useProxy) {
+    const proxyHost = window.location.host;
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const tls = profile.protocol === "mqtts" ? "&tls=true" : "";
+    return `${scheme}://${proxyHost}/mqtt-proxy?host=${encodeURIComponent(profile.host)}&port=${profile.port}${tls}`;
+  }
+
   switch (profile.protocol) {
-    case 'mqtt':
+    case "mqtt":
       return `mqtt://${profile.host}:${profile.port}`;
-    case 'mqtts':
+    case "mqtts":
       return `mqtts://${profile.host}:${profile.port}`;
-    case 'ws':
+    case "ws":
       return `ws://${profile.host}:${profile.port}${profile.path}`;
-    case 'wss':
+    case "wss":
       return `wss://${profile.host}:${profile.port}${profile.path}`;
   }
 }
@@ -149,7 +172,7 @@ function connectDirect(
   };
   directConnections.set(connectionId, conn);
 
-  client.on('connect', () => {
+  client.on("connect", () => {
     conn.reconnectAttempt = 0;
     handlers.onConnect();
     for (const sub of profile.subscriptions) {
@@ -157,18 +180,18 @@ function connectDirect(
     }
   });
 
-  client.on('close', () => {
+  client.on("close", () => {
     handlers.onDisconnect();
     if (conn.autoReconnect) {
       scheduleReconnect(connectionId);
     }
   });
 
-  client.on('error', (err) => {
+  client.on("error", (err) => {
     handlers.onError(err);
   });
 
-  client.on('message', (topic, payload, packet) => {
+  client.on("message", (topic, payload, packet) => {
     handlers.onMessage(topic, new Uint8Array(payload), {
       qos: packet.qos,
       retain: packet.retain,
@@ -215,7 +238,9 @@ export function subscribeTopic(connectionId: string, sub: Subscription): void {
   if (isElectron()) {
     window.electronAPI!.mqtt.subscribe(connectionId, sub.topic, sub.qos);
   } else {
-    directConnections.get(connectionId)?.client.subscribe(sub.topic, { qos: sub.qos });
+    directConnections
+      .get(connectionId)
+      ?.client.subscribe(sub.topic, { qos: sub.qos });
   }
 }
 
@@ -237,7 +262,7 @@ export function publishMessage(
     window.electronAPI!.mqtt.publish(
       connectionId,
       topic,
-      typeof payload === 'string' ? payload : payload.toString(),
+      typeof payload === "string" ? payload : payload.toString(),
       options,
     );
   } else {
