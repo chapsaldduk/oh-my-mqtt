@@ -21,7 +21,7 @@ Built as a faster, more capable alternative to MQTT Explorer.
 
 ### Docker (Recommended for macOS)
 
-The Docker version runs in your browser and requires no code signing. All protocols including `mqtt://` and `mqtts://` are fully supported through a built-in WebSocket-to-TCP proxy.
+The Docker version runs in your browser and requires no code signing. All protocols including `mqtt://` and `mqtts://` are fully supported through a built-in WebSocket-to-TCP proxy. Multi-architecture images are available for both Apple Silicon (arm64) and Intel (amd64).
 
 ```bash
 docker run -d -p 3000:3000 chapsaldduk/oh-my-mqtt
