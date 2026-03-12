@@ -1,21 +1,177 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTopicTree } from '@/hooks/useMessages.ts';
 import { ChevronRight, ChevronDown, Hash } from 'lucide-react';
 import { cn } from '@/lib/cn.ts';
 import type { TopicNode as TopicNodeType } from '@/types/mqtt.ts';
 
+/** Collect visible topic keys in display order. null = "All Topics". */
+function flattenVisible(
+  nodes: Map<string, TopicNodeType>,
+  expandedSet: Set<string>,
+): (string | null)[] {
+  const result: (string | null)[] = [null];
+  const walk = (children: Map<string, TopicNodeType>) => {
+    for (const node of children.values()) {
+      result.push(node.fullTopic);
+      if (node.children.size > 0 && expandedSet.has(node.fullTopic)) {
+        walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return result;
+}
+
+/** Auto-expand nodes up to depth 2 (pure function, no mutation) */
+function autoExpandTree(
+  nodes: Map<string, TopicNodeType>,
+  existing: Set<string>,
+): Set<string> {
+  const next = new Set(existing);
+  const walk = (children: Map<string, TopicNodeType>, depth: number) => {
+    if (depth >= 2) return;
+    for (const node of children.values()) {
+      if (node.children.size > 0) next.add(node.fullTopic);
+      walk(node.children, depth + 1);
+    }
+  };
+  walk(nodes, 0);
+  return next;
+}
+
+/** Find a node by its fullTopic path */
+function findNode(
+  nodes: Map<string, TopicNodeType>,
+  fullTopic: string,
+): TopicNodeType | null {
+  for (const node of nodes.values()) {
+    if (node.fullTopic === fullTopic) return node;
+    if (fullTopic.startsWith(node.fullTopic + '/')) {
+      const found = findNode(node.children, fullTopic);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 export function TopicTree() {
   const { topicTree, selectedTopic, selectTopic, totalMessages, messageRate, topicCount } =
     useTopicTree();
 
+  const [expandedSet, setExpandedSet] = useState<Set<string>>(() =>
+    autoExpandTree(topicTree.children, new Set()),
+  );
+  const panelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const activeRef = useRef(false);
+
+  // Auto-expand new nodes when tree updates
+  const [prevTree, setPrevTree] = useState(topicTree);
+  if (prevTree !== topicTree) {
+    setPrevTree(topicTree);
+    setExpandedSet((prev) => autoExpandTree(topicTree.children, prev));
+  }
+
+  // Track whether topic panel is "active" via clicks anywhere inside it
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const activate = () => { activeRef.current = true; };
+    const deactivate = (e: MouseEvent) => {
+      if (!panel.contains(e.target as Node)) {
+        activeRef.current = false;
+      }
+    };
+
+    panel.addEventListener('mousedown', activate);
+    window.addEventListener('mousedown', deactivate);
+    return () => {
+      panel.removeEventListener('mousedown', activate);
+      window.removeEventListener('mousedown', deactivate);
+    };
+  }, []);
+
+  // Window-level keydown listener (capture phase) for arrow navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!activeRef.current) return;
+      if (!['ArrowUp', 'ArrowDown', 'ArrowRight', 'ArrowLeft'].includes(e.key)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      // ArrowRight/Left: expand/collapse current node
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        if (!selectedTopic) return;
+        const node = findNode(topicTree.children, selectedTopic);
+        if (!node || node.children.size === 0) return;
+        const isExpanded = expandedSet.has(selectedTopic);
+        if (e.key === 'ArrowRight' && !isExpanded) {
+          setExpandedSet((prev) => new Set(prev).add(selectedTopic));
+        } else if (e.key === 'ArrowLeft' && isExpanded) {
+          setExpandedSet((prev) => {
+            const next = new Set(prev);
+            next.delete(selectedTopic);
+            return next;
+          });
+        }
+        return;
+      }
+
+      // ArrowUp/Down: navigate between visible topics
+      const visibleTopics = flattenVisible(topicTree.children, expandedSet);
+      if (visibleTopics.length === 0) return;
+
+      const currentIdx = visibleTopics.indexOf(selectedTopic);
+      let nextIdx: number;
+      if (e.key === 'ArrowUp') {
+        nextIdx = currentIdx <= 0 ? visibleTopics.length - 1 : currentIdx - 1;
+      } else {
+        nextIdx = currentIdx >= visibleTopics.length - 1 ? 0 : currentIdx + 1;
+      }
+
+      const nextTopic = visibleTopics[nextIdx];
+      selectTopic(nextTopic ?? null);
+
+      const key = nextTopic ?? '__all__';
+      const btnEl = itemRefs.current.get(key);
+      if (btnEl) {
+        btnEl.scrollIntoView({ block: 'nearest' });
+      }
+    };
+
+    window.addEventListener('keydown', handler, { capture: true });
+    return () => window.removeEventListener('keydown', handler, { capture: true });
+  }, [topicTree, expandedSet, selectedTopic, selectTopic]);
+
+  const toggleExpanded = useCallback((fullTopic: string) => {
+    setExpandedSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(fullTopic)) next.delete(fullTopic);
+      else next.add(fullTopic);
+      return next;
+    });
+  }, []);
+
+  const setItemRef = useCallback((key: string, el: HTMLButtonElement | null) => {
+    if (el) itemRefs.current.set(key, el);
+    else itemRefs.current.delete(key);
+  }, []);
+
   return (
-    <div className="h-full flex flex-col">
+    <div ref={panelRef} className="h-full flex flex-col">
       <div className="px-3 py-2 border-b border-[var(--border)]">
         <h2 className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">
           Topics
         </h2>
       </div>
-      <div className="flex-1 overflow-auto p-1">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-auto p-1"
+      >
         {topicTree.children.size === 0 ? (
           <p className="px-3 py-4 text-xs text-[var(--muted-foreground)] text-center">
             No messages yet.
@@ -25,6 +181,7 @@ export function TopicTree() {
         ) : (
           <div>
             <button
+              ref={(el) => setItemRef('__all__', el)}
               className={cn(
                 'flex items-center gap-1 px-2 py-1 w-full text-left text-xs rounded hover:bg-[var(--accent)] cursor-pointer',
                 selectedTopic === null && 'bg-[var(--accent)] font-medium',
@@ -44,6 +201,9 @@ export function TopicTree() {
                 depth={0}
                 selectedTopic={selectedTopic}
                 onSelect={selectTopic}
+                expandedSet={expandedSet}
+                onToggleExpand={toggleExpanded}
+                setItemRef={setItemRef}
               />
             ))}
           </div>
@@ -72,26 +232,33 @@ function TopicNodeItem({
   depth,
   selectedTopic,
   onSelect,
+  expandedSet,
+  onToggleExpand,
+  setItemRef,
 }: {
   node: TopicNodeType;
   depth: number;
   selectedTopic: string | null;
   onSelect: (topic: string | null) => void;
+  expandedSet: Set<string>;
+  onToggleExpand: (fullTopic: string) => void;
+  setItemRef: (key: string, el: HTMLButtonElement | null) => void;
 }) {
-  const [expanded, setExpanded] = useState(depth < 2);
   const hasChildren = node.children.size > 0;
   const isSelected = selectedTopic === node.fullTopic;
+  const expanded = expandedSet.has(node.fullTopic);
 
   return (
     <div>
       <button
+        ref={(el) => setItemRef(node.fullTopic, el)}
         className={cn(
           'flex items-center gap-1 w-full text-left text-xs rounded py-1 px-1 hover:bg-[var(--accent)] transition-colors cursor-pointer',
           isSelected && 'bg-[var(--accent)] font-medium',
         )}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         onClick={() => {
-          if (hasChildren) setExpanded(!expanded);
+          if (hasChildren) onToggleExpand(node.fullTopic);
           onSelect(node.fullTopic);
         }}
       >
@@ -125,6 +292,9 @@ function TopicNodeItem({
             depth={depth + 1}
             selectedTopic={selectedTopic}
             onSelect={onSelect}
+            expandedSet={expandedSet}
+            onToggleExpand={onToggleExpand}
+            setItemRef={setItemRef}
           />
         ))}
     </div>
