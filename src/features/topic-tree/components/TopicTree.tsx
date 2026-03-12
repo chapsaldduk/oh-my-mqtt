@@ -22,21 +22,37 @@ function flattenVisible(
   return result;
 }
 
-/** Auto-expand nodes up to depth 2 (pure function, no mutation) */
+/** Auto-expand only NEW nodes up to depth 2 (skip already-known topics) */
 function autoExpandTree(
   nodes: Map<string, TopicNodeType>,
   existing: Set<string>,
+  knownTopics: Set<string>,
 ): Set<string> {
   const next = new Set(existing);
   const walk = (children: Map<string, TopicNodeType>, depth: number) => {
     if (depth >= 2) return;
     for (const node of children.values()) {
-      if (node.children.size > 0) next.add(node.fullTopic);
+      if (node.children.size > 0 && !knownTopics.has(node.fullTopic)) {
+        next.add(node.fullTopic);
+      }
       walk(node.children, depth + 1);
     }
   };
   walk(nodes, 0);
   return next;
+}
+
+/** Collect all topic keys from tree */
+function collectAllTopics(nodes: Map<string, TopicNodeType>): Set<string> {
+  const result = new Set<string>();
+  const walk = (children: Map<string, TopicNodeType>) => {
+    for (const node of children.values()) {
+      result.add(node.fullTopic);
+      walk(node.children);
+    }
+  };
+  walk(nodes);
+  return result;
 }
 
 /** Find a node by its fullTopic path */
@@ -58,19 +74,21 @@ export function TopicTree() {
   const { topicTree, selectedTopic, selectTopic, totalMessages, messageRate, topicCount } =
     useTopicTree();
 
+  const knownTopicsRef = useRef<Set<string>>(new Set());
   const [expandedSet, setExpandedSet] = useState<Set<string>>(() =>
-    autoExpandTree(topicTree.children, new Set()),
+    autoExpandTree(topicTree.children, new Set(), knownTopicsRef.current),
   );
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const activeRef = useRef(false);
 
-  // Auto-expand new nodes when tree updates
+  // Auto-expand only NEW nodes when tree updates
   const [prevTree, setPrevTree] = useState(topicTree);
   if (prevTree !== topicTree) {
     setPrevTree(topicTree);
-    setExpandedSet((prev) => autoExpandTree(topicTree.children, prev));
+    setExpandedSet((prev) => autoExpandTree(topicTree.children, prev, knownTopicsRef.current));
+    knownTopicsRef.current = collectAllTopics(topicTree.children);
   }
 
   // Track whether topic panel is "active" via clicks anywhere inside it
