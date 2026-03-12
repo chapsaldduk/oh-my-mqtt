@@ -1,8 +1,6 @@
 services:
   oh-my-mqtt:
-    build: .
+    image: chapsaldduk/oh-my-mqtt
     ports:
       - "3000:3000"
-    environment:
-      - PORT=3000
     restart: unless-stopped
