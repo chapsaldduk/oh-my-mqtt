@@ -22,8 +22,10 @@ export function VirtualMessageList({
 }: Props) {
   const { autoScroll } = useMessageControls();
   const filteredMessages = useFilteredMessages();
+  const panelRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const activeRef = useRef(false);
 
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
@@ -59,8 +61,59 @@ export function VirtualMessageList({
     }
   }, [filteredMessages.length, autoScroll, shouldAutoScroll, virtualizer]);
 
+  // Track whether message list panel is "active" via clicks
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const activate = () => { activeRef.current = true; };
+    const deactivate = (e: MouseEvent) => {
+      if (!panel.contains(e.target as Node)) {
+        activeRef.current = false;
+      }
+    };
+
+    panel.addEventListener("mousedown", activate);
+    window.addEventListener("mousedown", deactivate);
+    return () => {
+      panel.removeEventListener("mousedown", activate);
+      window.removeEventListener("mousedown", deactivate);
+    };
+  }, []);
+
+  // Window-level keydown listener (capture phase) for arrow navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!activeRef.current) return;
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      if (filteredMessages.length === 0) return;
+
+      const currentIdx = selectedMessageId
+        ? filteredMessages.findIndex((m) => m.id === selectedMessageId)
+        : -1;
+
+      let nextIdx: number;
+      if (e.key === "ArrowUp") {
+        nextIdx = currentIdx <= 0 ? filteredMessages.length - 1 : currentIdx - 1;
+      } else {
+        nextIdx = currentIdx >= filteredMessages.length - 1 ? 0 : currentIdx + 1;
+      }
+
+      onSelectMessage(filteredMessages[nextIdx]);
+      virtualizer.scrollToIndex(nextIdx, { align: "auto" });
+    };
+
+    window.addEventListener("keydown", handler, { capture: true });
+    return () => window.removeEventListener("keydown", handler, { capture: true });
+  }, [filteredMessages, selectedMessageId, onSelectMessage, virtualizer]);
+
   return (
-    <div className="h-full flex flex-col">
+    <div ref={panelRef} className="h-full flex flex-col">
       {/* Header */}
       <div className="grid grid-cols-[60px_1fr_1fr_60px] gap-2 px-3 py-1.5 border-b border-[var(--border)] text-xs font-medium text-[var(--muted-foreground)]">
         <span>#</span>
