@@ -6,6 +6,7 @@ import { MessageDetail } from "@/features/message-viewer/components/MessageDetai
 import { MessageComparison } from "@/features/message-viewer/components/MessageComparison.tsx";
 import { MessageToolbar } from "@/features/message-viewer/components/MessageToolbar.tsx";
 import { RecentConnectionsTabs } from "@/features/connection/components/RecentConnectionsTabs.tsx";
+import { SubscriptionBar } from "@/features/connection/components/SubscriptionBar.tsx";
 import { SearchPanel } from "@/features/search/components/SearchPanel.tsx";
 import { StatsView } from "@/features/stats/components/StatsView.tsx";
 import { useUIStore } from "@/stores/uiStore.ts";
@@ -137,6 +138,7 @@ export function Layout() {
         <div className="flex-1 min-w-0 flex flex-col">
           {/* Connection tabs */}
           <RecentConnectionsTabs />
+          <SubscriptionBar />
 
           <Group orientation="vertical" className="flex-1 min-h-0">
             {/* Top: Message List */}
