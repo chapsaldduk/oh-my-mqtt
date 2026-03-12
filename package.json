@@ -1,6 +1,6 @@
 {
   "name": "oh-my-mqtt",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "Modern desktop MQTT client for macOS, Windows, and Linux",
   "author": {
     "name": "Oh My MQTT Contributors",
