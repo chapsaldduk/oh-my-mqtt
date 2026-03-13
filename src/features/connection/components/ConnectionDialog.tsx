@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/Input.tsx";
 import { Select } from "@/components/ui/Select.tsx";
 import { useConnection } from "@/hooks/useConnection.ts";
 import { useUIStore } from "@/stores/uiStore.ts";
-import { Trash2, Plus, Edit, MoreVertical, Download, Upload } from "lucide-react";
-import type { ConnectionProfile } from "@/types/mqtt.ts";
+import { Trash2, Plus, Edit, MoreVertical, Download, Upload, X } from "lucide-react";
+import type { ConnectionProfile, Subscription } from "@/types/mqtt.ts";
 import { DropdownMenu } from "@/components/ui/DropdownMenu.tsx";
 import { usePasswordPrompt } from "@/components/ui/PasswordPrompt.tsx";
 import { encrypt, decrypt } from "@/lib/crypto.ts";
@@ -79,6 +79,7 @@ export function ConnectionDialog() {
     if (editingId) {
       // Update existing profile
       await updateProfile(editingId, form);
+      connect(editingId);
       setEditingId(null);
     } else {
       // Create new profile
@@ -181,7 +182,7 @@ export function ConnectionDialog() {
       open={showConnectionDialog}
       onClose={toggleConnectionDialog}
       title="MQTT Connections"
-      className="max-w-md"
+      className="max-w-lg"
     >
       {!showForm ? (
         <div className="space-y-3">
@@ -368,6 +369,83 @@ export function ConnectionDialog() {
                 onChange={(e) => updateField("clientId", e.target.value)}
               />
             </div>
+          </div>
+
+          {/* Subscriptions */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-[var(--muted-foreground)]">
+                Subscriptions
+              </label>
+            </div>
+            {(form.subscriptions ?? []).map((sub, idx) => (
+              <div key={idx} className="flex gap-1.5 items-center">
+                <Input
+                  value={sub.topic}
+                  onChange={(e) => {
+                    const subs = [...(form.subscriptions ?? [])];
+                    subs[idx] = { ...subs[idx], topic: e.target.value };
+                    updateField("subscriptions", subs);
+                  }}
+                  placeholder="topic/path/#"
+                  className="flex-1 h-8 text-xs"
+                />
+                <Select
+                  value={sub.qos}
+                  onChange={(e) => {
+                    const subs = [...(form.subscriptions ?? [])];
+                    subs[idx] = {
+                      ...subs[idx],
+                      qos: Number(e.target.value) as 0 | 1 | 2,
+                    };
+                    updateField("subscriptions", subs);
+                  }}
+                  className="w-20 h-8 text-xs"
+                >
+                  <option value={0}>QoS 0</option>
+                  <option value={1}>QoS 1</option>
+                  <option value={2}>QoS 2</option>
+                </Select>
+                <input
+                  type="color"
+                  value={sub.color || "#22c55e"}
+                  onChange={(e) => {
+                    const subs = [...(form.subscriptions ?? [])];
+                    subs[idx] = { ...subs[idx], color: e.target.value };
+                    updateField("subscriptions", subs);
+                  }}
+                  className="w-8 h-8 rounded border border-[var(--border)] cursor-pointer p-0.5 bg-transparent"
+                  title="Subscription color"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => {
+                    const subs = (form.subscriptions ?? []).filter(
+                      (_, i) => i !== idx,
+                    );
+                    updateField("subscriptions", subs);
+                  }}
+                >
+                  <X size={14} />
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs h-7"
+              onClick={() => {
+                const subs = [
+                  ...(form.subscriptions ?? []),
+                  { topic: "", qos: 0 as const },
+                ];
+                updateField("subscriptions", subs);
+              }}
+            >
+              <Plus size={12} className="mr-1" /> Add Subscription
+            </Button>
           </div>
 
           {/* TLS/SSL Certificate fields for mqtts/wss */}

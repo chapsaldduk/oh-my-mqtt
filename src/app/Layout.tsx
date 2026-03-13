@@ -3,8 +3,10 @@ import { Panel, Group, Separator } from "react-resizable-panels";
 import { TopicTree } from "@/features/topic-tree/components/TopicTree.tsx";
 import { VirtualMessageList } from "@/features/message-viewer/components/VirtualMessageList.tsx";
 import { MessageDetail } from "@/features/message-viewer/components/MessageDetail.tsx";
+import { MessageComparison } from "@/features/message-viewer/components/MessageComparison.tsx";
 import { MessageToolbar } from "@/features/message-viewer/components/MessageToolbar.tsx";
 import { RecentConnectionsTabs } from "@/features/connection/components/RecentConnectionsTabs.tsx";
+import { SubscriptionBar } from "@/features/connection/components/SubscriptionBar.tsx";
 import { SearchPanel } from "@/features/search/components/SearchPanel.tsx";
 import { StatsView } from "@/features/stats/components/StatsView.tsx";
 import { useUIStore } from "@/stores/uiStore.ts";
@@ -17,8 +19,13 @@ const MAX_LEFT_RATIO = 0.4;
 const COLLAPSED_WIDTH = 0;
 
 export function Layout() {
-  const { selectedMessage } = useActiveTabState();
+  const { selectedMessage, compareIds, messages } = useActiveTabState();
   const setSelectedMessage = useMessageStore((s) => s.setSelectedMessage);
+  const clearComparison = useMessageStore((s) => s.clearComparison);
+
+  const isComparing = compareIds[0] !== null && compareIds[1] !== null;
+  const compareMessage1 = isComparing ? messages.find((m) => m.id === compareIds[0]) ?? null : null;
+  const compareMessage2 = isComparing ? messages.find((m) => m.id === compareIds[1]) ?? null : null;
   const { showStatsPanel } = useUIStore();
   const [leftWidth, setLeftWidth] = useState(MIN_LEFT_WIDTH + 20);
   const [isDragging, setIsDragging] = useState(false);
@@ -131,6 +138,7 @@ export function Layout() {
         <div className="flex-1 min-w-0 flex flex-col">
           {/* Connection tabs */}
           <RecentConnectionsTabs />
+          <SubscriptionBar />
 
           <Group orientation="vertical" className="flex-1 min-h-0">
             {/* Top: Message List */}
@@ -148,9 +156,17 @@ export function Layout() {
 
             <Separator className="h-1 bg-[var(--border)] hover:bg-[var(--primary)] transition-colors cursor-row-resize" />
 
-            {/* Bottom: Message Detail */}
+            {/* Bottom: Message Detail or Comparison */}
             <Panel defaultSize={40} minSize={20} className="min-h-[160px]">
-              <MessageDetail message={selectedMessage} />
+              {isComparing ? (
+                <MessageComparison
+                  message1={compareMessage1}
+                  message2={compareMessage2}
+                  onClose={clearComparison}
+                />
+              ) : (
+                <MessageDetail message={selectedMessage} />
+              )}
             </Panel>
           </Group>
         </div>
