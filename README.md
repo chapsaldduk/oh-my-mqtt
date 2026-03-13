@@ -1,8 +1,16 @@
+<p align="center">
+  <img src="resources/icon.png" alt="Oh My MQTT" width="128" />
+</p>
+
 # Oh My MQTT
 
 A modern, high-performance MQTT client for desktop and web. Monitor topics in real time, record message sessions, and export everything as JSON — across multiple simultaneous connections.
 
 Built as a faster, more capable alternative to MQTT Explorer.
+
+<p align="center">
+  <img src="asset/example.png" alt="Oh My MQTT Screenshot" width="800" />
+</p>
 
 ## Key Features
 
