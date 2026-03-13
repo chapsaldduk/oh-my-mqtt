@@ -4,9 +4,9 @@
 
 # Oh My MQTT
 
-A modern, high-performance MQTT client for desktop and web. Monitor topics in real time, record message sessions, and export everything as JSON — across multiple simultaneous connections.
+An open-source, self-hosted MQTT GUI client for desktop and web. Monitor topics in real time, record message sessions, and export everything as JSON — across multiple simultaneous connections.
 
-Built as a faster, more capable alternative to MQTT Explorer.
+Ships with a built-in MQTT TCP proxy so native `mqtt://` and `mqtts://` protocols work directly in the browser — no WebSocket-only brokers required. Deploy with a single `docker run` and use it as your MQTT debugger and MQTT monitor for IoT infrastructure.
 
 <p align="center">
   <img src="asset/example.png" alt="Oh My MQTT Screenshot" width="800" />
@@ -15,21 +15,34 @@ Built as a faster, more capable alternative to MQTT Explorer.
 ## Key Features
 
 - **Multi-Connection Tabs** — Connect to multiple MQTT brokers at once, each in its own tab
-- **Connection Import / Export** — Save and share connection profiles as JSON
-- **Message Download** — Export received messages as JSON for analysis or archiving
-- **Session Recording** — Capture all messages within a time window and download them as JSON
+- **Connection Import / Export** — Save and share connection profiles as password-encrypted JSON
+- **Message Export** — Export received messages as JSON or CSV for analysis or archiving
+- **MQTT Recorder & Playback** — Record messages and replay sessions at adjustable speed (0.5x–8x)
+- **Message Comparison** — Side-by-side diff of two messages with line-level highlighting
 - **Topic Tree Browser** — Visualize your MQTT topic hierarchy in real time
-- **Message Viewer** — Inspect payloads in JSON, Plain Text, HEX, or Base64
+- **Message Viewer** — Inspect payloads in JSON, Plain Text, HEX, Hex Dump, or Base64
 - **Publish Messages** — Send messages with QoS and Retain options
 - **Advanced Search** — Filter by regex, topic pattern, or time range
 - **Statistics Dashboard** — View message rates, per-topic stats, and QoS distribution
 - **Multi-Protocol Support** — `mqtt://`, `mqtts://`, `ws://`, `wss://`
+- **Built-in MQTT TCP Proxy** — Connect to any MQTT broker over TCP directly from the browser, no separate WebSocket bridge needed
+
+## Protocol Support
+
+| | Supported |
+| --- | --- |
+| **MQTT Version** | v3.1.1, v5.0 |
+| **QoS** | 0, 1, 2 |
+| **Transport** | `mqtt://`, `mqtts://`, `ws://`, `wss://` |
+| **TLS/SSL** | Server CA, Client Certificate, Client Key |
+| **Auth** | Username / Password |
+| **Features** | Retain, Clean Session, Keep-Alive, Custom Client ID |
 
 ## Installation
 
-### Docker (Recommended for macOS)
+### Docker (Recommended for self-hosting)
 
-The Docker version runs in your browser and requires no code signing. All protocols including `mqtt://` and `mqtts://` are fully supported through a built-in WebSocket-to-TCP proxy. Multi-architecture images are available for both Apple Silicon (arm64) and Intel (amd64).
+Runs in your browser with full protocol support via the built-in TCP proxy. Multi-architecture images are available for both Apple Silicon (arm64) and Intel (amd64).
 
 ```bash
 docker run -d -p 3000:3000 chapsaldduk/oh-my-mqtt
