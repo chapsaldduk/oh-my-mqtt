@@ -4,9 +4,9 @@
 
 # Oh My MQTT
 
-An open-source, self-hosted MQTT GUI client for desktop and web. Monitor topics in real time, record message sessions, and export everything as JSON — across multiple simultaneous connections.
+A self-hosted MQTT GUI client that combines a built-in TCP proxy, session recorder with playback, and message diff viewer — for desktop and web.
 
-Ships with a built-in MQTT TCP proxy so native `mqtt://` and `mqtts://` protocols work directly in the browser — no WebSocket-only brokers required. Deploy with a single `docker run` and use it as your MQTT debugger and MQTT monitor for IoT infrastructure.
+Connect to any MQTT broker over native `mqtt://` and `mqtts://` directly from the browser with no WebSocket-only limitation. Record entire message sessions and replay them at adjustable speed. Compare two messages side by side with line-level diff. Deploy with a single `docker run` and use it as your MQTT debugger and MQTT monitor. Works great with Home Assistant, Mosquitto, EMQX, and any MQTT v3.1.1 / v5.0 broker.
 
 <p align="center">
   <img src="asset/example.png" alt="Oh My MQTT Screenshot" width="800" />
@@ -68,7 +68,7 @@ Download the latest installer from [GitHub Releases](https://github.com/chapsald
 
 ### macOS (Homebrew)
 
-> **Note**: The macOS desktop app is not code-signed. Direct `.dmg` downloads will be blocked by Gatekeeper. Use Homebrew or Docker instead.
+> **Tip**: Install via Homebrew to skip macOS Gatekeeper prompts. Alternatively, use Docker for a zero-install experience.
 
 ```bash
 brew tap chapsaldduk/oh-my-mqtt
@@ -77,13 +77,13 @@ brew install --cask --no-quarantine oh-my-mqtt
 
 ## Platform Comparison
 
-|                      | Docker               | Desktop (Electron)                  |
-| -------------------- | -------------------- | ----------------------------------- |
-| **Protocols**        | mqtt, mqtts, ws, wss | mqtt, mqtts, ws, wss                |
-| **macOS Gatekeeper** | No issues            | Requires Homebrew `--no-quarantine` |
-| **Installation**     | `docker run`         | Installer or Homebrew               |
-| **TLS Certificates** | Not supported        | Supported                           |
-| **Auto-Update**      | Pull latest image    | Built-in updater                    |
+|                      | Docker               | Desktop (Electron)          |
+| -------------------- | -------------------- | --------------------------- |
+| **Protocols**        | mqtt, mqtts, ws, wss | mqtt, mqtts, ws, wss        |
+| **macOS**            | No issues            | Simple install via Homebrew |
+| **Installation**     | `docker run`         | Installer or Homebrew       |
+| **TLS Certificates** | Via reverse proxy    | Supported                   |
+| **Auto-Update**      | Pull latest image    | Built-in updater            |
 
 ## Tech Stack
 
