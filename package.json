@@ -6,6 +6,7 @@
     "name": "Oh My MQTT Contributors",
     "email": "chapsaldduk0@gmail.com"
   },
+  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
