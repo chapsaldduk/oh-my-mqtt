@@ -18,6 +18,7 @@ WORKDIR /app
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server.js ./server.js
+COPY --from=build /app/LICENSE ./LICENSE
 
 RUN echo '{"type":"module","dependencies":{"express":"^4","ws":"^8"}}' > package.json && npm install
 

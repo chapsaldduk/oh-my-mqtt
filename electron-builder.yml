@@ -7,6 +7,8 @@ asar: true
 files:
   - out
   - "!node_modules"
+extraResources:
+  - LICENSE
 mac:
   category: public.app-category.developer-tools
   icon: resources/icon.icns
