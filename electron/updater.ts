@@ -1,4 +1,4 @@
-import { autoUpdater, UpdateInfo } from "electron-updater";
+import { autoUpdater, type UpdateInfo } from "electron-updater";
 import { BrowserWindow, ipcMain } from "electron";
 
 const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
@@ -6,7 +6,21 @@ const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
 let mainWindow: BrowserWindow | null = null;
 
 function sendToRenderer(channel: string, ...args: unknown[]) {
-  mainWindow?.webContents.send(channel, ...args);
+  // Reading `.webContents` off a destroyed window throws, and the periodic
+  // check keeps firing long after the window is gone.
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    const { webContents } = mainWindow;
+    if (webContents.isDestroyed()) return;
+    webContents.send(channel, ...args);
+  } catch (err) {
+    console.error(`Failed to send ${channel} to renderer:`, err);
+  }
+}
+
+/** Re-point the updater at a window recreated after the first one was closed. */
+export function setUpdaterWindow(win: BrowserWindow) {
+  mainWindow = win;
 }
 
 export function setupUpdater(win: BrowserWindow) {

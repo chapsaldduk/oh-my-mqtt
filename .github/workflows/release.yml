@@ -162,7 +162,7 @@ jobs:
             end
 
             name "Oh My MQTT"
-            desc "Modern desktop MQTT client for macOS, Windows, and Linux"
+            desc "MQTT client with session recording, playback, and message diff"
             homepage "https://github.com/chapsaldduk/oh-my-mqtt"
 
             app "Oh My MQTT.app"

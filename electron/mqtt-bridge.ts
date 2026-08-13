@@ -19,24 +19,37 @@ interface ConnectionProfile {
   keyFile?: string;
 }
 
-class MqttBridge {
+export class MqttBridge {
   private client: MqttClient | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
   private autoReconnect = true;
+  private suspended = false;
   private currentProfile: ConnectionProfile | null = null;
   private currentWindow: BrowserWindow | null = null;
 
   private readonly RECONNECT_BASE_DELAY = 1000;
   private readonly RECONNECT_MAX_DELAY = 30000;
+  private readonly RESUME_DELAY = 500;
 
   constructor(private readonly connectionId: string) {}
 
   connect(profile: ConnectionProfile, window: BrowserWindow) {
-    this.disconnect();
+    // Drop the old socket but keep `reconnectAttempt`: a reconnect goes through
+    // here, and resetting the counter would pin the backoff at its first step.
+    this.teardownClient();
+
+    // A window destroyed while this bridge was reconnecting must not be
+    // revived: bail out instead of holding a dead reference.
+    if (window.isDestroyed()) {
+      this.disconnect();
+      return;
+    }
+
     this.currentProfile = profile;
     this.currentWindow = window;
     this.autoReconnect = true;
+    this.suspended = false;
 
     const url = this.buildUrl(profile);
 
@@ -64,19 +77,29 @@ class MqttBridge {
       }
     }
 
-    this.client = mqtt.connect(url, options);
+    const client = mqtt.connect(url, options);
+    this.client = client;
 
-    this.client.on("connect", () => {
+    client.on("connect", () => {
+      if (this.client !== client) return;
       this.reconnectAttempt = 0;
-      window.webContents.send("mqtt:on-connect", this.connectionId);
+      if (this.isWindowGone()) {
+        this.disconnect();
+        return;
+      }
+      this.send("mqtt:on-connect", this.connectionId);
       for (const sub of profile.subscriptions) {
-        this.client?.subscribe(sub.topic, { qos: sub.qos });
+        client.subscribe(sub.topic, { qos: sub.qos });
       }
     });
 
-    this.client.on("message", (topic, payload, packet) => {
-      if (window.isDestroyed()) return;
-      window.webContents.send(
+    client.on("message", (topic, payload, packet) => {
+      if (this.client !== client) return;
+      if (this.isWindowGone()) {
+        this.disconnect();
+        return;
+      }
+      this.send(
         "mqtt:on-message",
         this.connectionId,
         topic,
@@ -85,34 +108,70 @@ class MqttBridge {
       );
     });
 
-    this.client.on("close", () => {
-      if (!window.isDestroyed()) {
-        window.webContents.send("mqtt:on-disconnect", this.connectionId);
+    client.on("close", () => {
+      if (this.client !== client) return;
+      if (this.isWindowGone()) {
+        this.disconnect();
+        return;
       }
+      this.send("mqtt:on-disconnect", this.connectionId);
       if (this.autoReconnect) this.scheduleReconnect();
     });
 
-    this.client.on("error", (err) => {
-      if (!window.isDestroyed()) {
-        window.webContents.send(
-          "mqtt:on-error",
-          this.connectionId,
-          err.message,
-        );
+    client.on("error", (err) => {
+      if (this.client !== client) return;
+      if (this.isWindowGone()) {
+        this.disconnect();
+        return;
       }
+      this.send("mqtt:on-error", this.connectionId, err.message);
     });
   }
 
   disconnect() {
     this.autoReconnect = false;
-    this.clearReconnect();
+    this.suspended = false;
+    this.reconnectAttempt = 0;
+    this.teardownClient();
     this.currentProfile = null;
     this.currentWindow = null;
+  }
+
+  private teardownClient() {
+    this.clearTimer();
     if (this.client) {
-      this.client.removeAllListeners();
-      this.client.end(true);
+      const client = this.client;
       this.client = null;
+      client.removeAllListeners();
+      try {
+        client.end(true);
+      } catch (err) {
+        console.error("Failed to end MQTT client:", err);
+      }
     }
+  }
+
+  /**
+   * Machine is going to sleep: stop the backoff timer so it cannot fire against
+   * a network stack that is still coming back up.
+   */
+  suspend() {
+    if (!this.currentProfile) return;
+    this.suspended = true;
+    this.clearReconnect();
+  }
+
+  /** Machine woke up: the old socket is dead even if mqtt.js hasn't noticed. */
+  resume() {
+    if (!this.suspended) return;
+    this.suspended = false;
+    if (!this.autoReconnect || !this.currentProfile) return;
+    if (this.isWindowGone()) {
+      this.disconnect();
+      return;
+    }
+    this.reconnectAttempt = 0;
+    this.restartAfter(this.RESUME_DELAY);
   }
 
   publish(
@@ -134,6 +193,23 @@ class MqttBridge {
     this.client?.unsubscribe(topic);
   }
 
+  private isWindowGone(): boolean {
+    const window = this.currentWindow;
+    return !window || window.isDestroyed();
+  }
+
+  private send(channel: string, ...args: unknown[]) {
+    const window = this.currentWindow;
+    if (!window || window.isDestroyed()) return;
+    try {
+      const { webContents } = window;
+      if (webContents.isDestroyed()) return;
+      webContents.send(channel, ...args);
+    } catch (err) {
+      console.error(`Failed to send ${channel} to renderer:`, err);
+    }
+  }
+
   private buildUrl(profile: ConnectionProfile): string {
     switch (profile.protocol) {
       case "mqtt":
@@ -148,8 +224,11 @@ class MqttBridge {
   }
 
   private scheduleReconnect() {
-    if (!this.autoReconnect || !this.currentProfile || !this.currentWindow)
+    if (this.suspended || !this.autoReconnect || !this.currentProfile) return;
+    if (this.isWindowGone()) {
+      this.disconnect();
       return;
+    }
 
     this.reconnectAttempt++;
     const delay = Math.min(
@@ -157,32 +236,53 @@ class MqttBridge {
       this.RECONNECT_MAX_DELAY,
     );
 
-    if (!this.currentWindow.isDestroyed()) {
-      this.currentWindow.webContents.send(
-        "mqtt:on-reconnecting",
-        this.connectionId,
-        this.reconnectAttempt,
-        delay,
-      );
-    }
+    this.send(
+      "mqtt:on-reconnecting",
+      this.connectionId,
+      this.reconnectAttempt,
+      delay,
+    );
 
+    this.restartAfter(delay);
+  }
+
+  private restartAfter(delay: number) {
+    this.clearTimer();
     this.reconnectTimer = setTimeout(() => {
-      if (!this.autoReconnect || !this.currentProfile || !this.currentWindow)
+      this.reconnectTimer = null;
+      if (this.suspended || !this.autoReconnect) return;
+      const profile = this.currentProfile;
+      const window = this.currentWindow;
+      if (!profile || !window) return;
+      if (window.isDestroyed()) {
+        this.disconnect();
         return;
-      this.connect(this.currentProfile, this.currentWindow);
+      }
+      this.connect(profile, window);
     }, delay);
   }
 
-  private clearReconnect() {
+  private clearTimer() {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+  }
+
+  private clearReconnect() {
+    this.clearTimer();
     this.reconnectAttempt = 0;
   }
 }
 
-export function registerMqttHandlers() {
+export interface MqttHandlers {
+  /** Tear down every bridge (window closed, app quitting). */
+  disconnectAll(): void;
+  suspendAll(): void;
+  resumeAll(): void;
+}
+
+export function registerMqttHandlers(): MqttHandlers {
   const bridges = new Map<string, MqttBridge>();
 
   ipcMain.on(
@@ -219,4 +319,17 @@ export function registerMqttHandlers() {
   ipcMain.on("mqtt:unsubscribe", (_, connectionId: string, topic: string) =>
     bridges.get(connectionId)?.unsubscribe(topic),
   );
+
+  return {
+    disconnectAll() {
+      for (const bridge of bridges.values()) bridge.disconnect();
+      bridges.clear();
+    },
+    suspendAll() {
+      for (const bridge of bridges.values()) bridge.suspend();
+    },
+    resumeAll() {
+      for (const bridge of bridges.values()) bridge.resume();
+    },
+  };
 }
