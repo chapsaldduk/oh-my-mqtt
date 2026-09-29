@@ -4,8 +4,10 @@ import { db } from '@/lib/db.ts';
 import type { RecordingSession, RecordedMessage } from '@/types/recorder.ts';
 import type { MqttMessage } from '@/types/mqtt.ts';
 import { messagesToJson, messagesToCsv, downloadFile } from '@/lib/export.ts';
+import { publishMessage } from '@/lib/mqtt-client.ts';
 import { useMessageStore } from './messageStore.ts';
 import { useUIStore } from './uiStore.ts';
+import { useConnectionStore } from './connectionStore.ts';
 
 interface RecorderState {
   isRecording: boolean;
@@ -16,6 +18,8 @@ interface RecorderState {
   playbackSpeed: number;
   playbackPosition: number;
   playbackDuration: number;
+  publishOnReplay: boolean;
+  keepRetain: boolean;
 
   startRecording: (name: string, topicFilter?: string) => void;
   stopRecording: () => Promise<void>;
@@ -26,6 +30,8 @@ interface RecorderState {
   resumePlayback: () => void;
   seekPlayback: (positionMs: number) => void;
   setPlaybackSpeed: (speed: number) => void;
+  setPublishOnReplay: (value: boolean) => void;
+  setKeepRetain: (value: boolean) => void;
   exportSession: (sessionId: string, format: 'json' | 'csv') => Promise<void>;
   loadSessions: () => Promise<void>;
   captureMessage: (connectionId: string, msg: MqttMessage) => void;
@@ -34,6 +40,26 @@ interface RecorderState {
 let playbackTimers: ReturnType<typeof setTimeout>[] = [];
 let playbackMessages: RecordedMessage[] = [];
 let pausedAt = 0;
+
+function emitRecorded(tabId: string, msg: RecordedMessage) {
+  const { publishOnReplay, keepRetain } = useRecorderStore.getState();
+  if (publishOnReplay) {
+    publishMessage(tabId, msg.topic, msg.payload, {
+      qos: msg.qos,
+      retain: keepRetain && msg.retain,
+    });
+    return;
+  }
+  useMessageStore.getState().addMessage(tabId, {
+    id: nanoid(),
+    topic: msg.topic,
+    payload: msg.payload,
+    qos: msg.qos,
+    retain: msg.retain,
+    timestamp: Date.now(),
+    size: msg.payload.byteLength,
+  });
+}
 
 export const useRecorderStore = create<RecorderState>((set, get) => ({
   isRecording: false,
@@ -44,6 +70,8 @@ export const useRecorderStore = create<RecorderState>((set, get) => ({
   playbackSpeed: 1,
   playbackPosition: 0,
   playbackDuration: 0,
+  publishOnReplay: false,
+  keepRetain: false,
 
   startRecording: (name, topicFilter) => {
     const activeTabId = useUIStore.getState().activeTabId ?? '';
@@ -82,6 +110,12 @@ export const useRecorderStore = create<RecorderState>((set, get) => ({
   },
 
   startPlayback: async (sessionId) => {
+    if (get().publishOnReplay) {
+      const tabId = useUIStore.getState().activeTabId;
+      const conn = tabId ? useConnectionStore.getState().connections.get(tabId) : undefined;
+      if (conn?.status !== 'connected') return;
+    }
+
     const messages = await db.recordedMessages
       .where('sessionId')
       .equals(sessionId)
@@ -100,21 +134,12 @@ export const useRecorderStore = create<RecorderState>((set, get) => ({
     const activeTabId = useUIStore.getState().activeTabId;
     if (!activeTabId) return;
 
-    const addMessage = useMessageStore.getState().addMessage;
-    useMessageStore.getState().clearMessages();
+    if (!get().publishOnReplay) useMessageStore.getState().clearMessages();
 
     for (const msg of messages) {
       const delay = msg.offsetMs / speed;
       const timer = setTimeout(() => {
-        addMessage(activeTabId, {
-          id: nanoid(),
-          topic: msg.topic,
-          payload: msg.payload,
-          qos: msg.qos,
-          retain: msg.retain,
-          timestamp: Date.now(),
-          size: msg.payload.byteLength,
-        });
+        emitRecorded(activeTabId, msg);
         set({ playbackPosition: msg.offsetMs });
       }, delay);
       playbackTimers.push(timer);
@@ -150,7 +175,6 @@ export const useRecorderStore = create<RecorderState>((set, get) => ({
     const activeTabId = useUIStore.getState().activeTabId;
     if (!activeTabId) return;
 
-    const addMessage = useMessageStore.getState().addMessage;
     const remaining = playbackMessages.filter((m) => m.offsetMs > pausedAt);
 
     set({ isPaused: false });
@@ -158,15 +182,7 @@ export const useRecorderStore = create<RecorderState>((set, get) => ({
     for (const msg of remaining) {
       const delay = (msg.offsetMs - pausedAt) / speed;
       const timer = setTimeout(() => {
-        addMessage(activeTabId, {
-          id: nanoid(),
-          topic: msg.topic,
-          payload: msg.payload,
-          qos: msg.qos,
-          retain: msg.retain,
-          timestamp: Date.now(),
-          size: msg.payload.byteLength,
-        });
+        emitRecorded(activeTabId, msg);
         set({ playbackPosition: msg.offsetMs });
       }, delay);
       playbackTimers.push(timer);
@@ -195,6 +211,8 @@ export const useRecorderStore = create<RecorderState>((set, get) => ({
   },
 
   setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
+  setPublishOnReplay: (value) => set({ publishOnReplay: value }),
+  setKeepRetain: (value) => set({ keepRetain: value }),
 
   exportSession: async (sessionId, format) => {
     const messages = await db.recordedMessages

@@ -12,6 +12,8 @@ export function useRecorder() {
     playbackSpeed: store.playbackSpeed,
     playbackPosition: store.playbackPosition,
     playbackDuration: store.playbackDuration,
+    publishOnReplay: store.publishOnReplay,
+    keepRetain: store.keepRetain,
     startRecording: store.startRecording,
     stopRecording: store.stopRecording,
     deleteSession: store.deleteSession,
@@ -21,6 +23,8 @@ export function useRecorder() {
     resumePlayback: store.resumePlayback,
     seekPlayback: store.seekPlayback,
     setPlaybackSpeed: store.setPlaybackSpeed,
+    setPublishOnReplay: store.setPublishOnReplay,
+    setKeepRetain: store.setKeepRetain,
     exportSession: store.exportSession,
     loadSessions: store.loadSessions,
   };

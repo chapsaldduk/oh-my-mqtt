@@ -176,10 +176,11 @@ export class MqttBridge {
 
   publish(
     topic: string,
-    payload: string,
+    payload: string | Uint8Array,
     options?: { qos?: 0 | 1 | 2; retain?: boolean },
   ) {
-    this.client?.publish(topic, payload, {
+    const body = typeof payload === "string" ? payload : Buffer.from(payload);
+    this.client?.publish(topic, body, {
       qos: options?.qos ?? 0,
       retain: options?.retain ?? false,
     });
@@ -306,7 +307,13 @@ export function registerMqttHandlers(): MqttHandlers {
 
   ipcMain.on(
     "mqtt:publish",
-    (_, connectionId: string, topic: string, payload: string, options) =>
+    (
+      _,
+      connectionId: string,
+      topic: string,
+      payload: string | Uint8Array,
+      options,
+    ) =>
       bridges.get(connectionId)?.publish(topic, payload, options),
   );
 

@@ -255,18 +255,13 @@ export function unsubscribeTopic(connectionId: string, topic: string): void {
 export function publishMessage(
   connectionId: string,
   topic: string,
-  payload: string | Buffer,
+  payload: string | Uint8Array,
   options: { qos?: 0 | 1 | 2; retain?: boolean } = {},
 ): void {
   if (isElectron()) {
-    window.electronAPI!.mqtt.publish(
-      connectionId,
-      topic,
-      typeof payload === "string" ? payload : payload.toString(),
-      options,
-    );
+    window.electronAPI!.mqtt.publish(connectionId, topic, payload, options);
   } else {
-    directConnections.get(connectionId)?.client.publish(topic, payload, {
+    directConnections.get(connectionId)?.client.publish(topic, payload as Buffer, {
       qos: options.qos ?? 0,
       retain: options.retain ?? false,
     });

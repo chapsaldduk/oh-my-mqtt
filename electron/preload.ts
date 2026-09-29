@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     publish: (
       connectionId: string,
       topic: string,
-      payload: string,
+      payload: string | Uint8Array,
       options?: { qos?: 0 | 1 | 2; retain?: boolean },
     ) => ipcRenderer.send("mqtt:publish", connectionId, topic, payload, options),
     subscribe: (connectionId: string, topic: string, qos: 0 | 1 | 2) =>
