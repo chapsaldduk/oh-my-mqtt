@@ -4,7 +4,7 @@ interface ElectronMqttAPI {
   publish: (
     connectionId: string,
     topic: string,
-    payload: string,
+    payload: string | Uint8Array,
     options?: { qos?: 0 | 1 | 2; retain?: boolean },
   ) => void;
   subscribe: (connectionId: string, topic: string, qos: 0 | 1 | 2) => void;
