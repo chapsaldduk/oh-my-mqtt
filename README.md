@@ -68,12 +68,13 @@ Download the latest installer from [GitHub Releases](https://github.com/chapsald
 
 ### macOS (Homebrew)
 
-> **Tip**: Install via Homebrew to skip macOS Gatekeeper prompts. Alternatively, use Docker for a zero-install experience.
-
 ```bash
 brew tap chapsaldduk/oh-my-mqtt
-brew install --cask --no-quarantine oh-my-mqtt
+brew install --cask oh-my-mqtt
+xattr -dr com.apple.quarantine "/Applications/Oh My MQTT.app"
 ```
+
+> **Note**: The app is not notarized yet, so Gatekeeper blocks it on first launch. The `xattr` line removes the quarantine flag. Homebrew removed `--no-quarantine` in 5.0.0. Alternatively, use Docker for a zero-install experience.
 
 ## Platform Comparison
 
