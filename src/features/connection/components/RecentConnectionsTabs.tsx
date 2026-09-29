@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button.tsx";
 import { X, Plus } from "lucide-react";
 
 export function RecentConnectionsTabs() {
-  const { profiles, connections, disconnect } = useConnectionStore();
+  const { profiles, connections, connect, disconnect } = useConnectionStore();
   const { openTabs, activeTabId, setActiveTab, openConnectionDialog } =
     useUIStore();
   const tabs = useMessageStore((s) => s.tabs);
@@ -50,7 +50,13 @@ export function RecentConnectionsTabs() {
           >
             <span className={`w-2 h-2 rounded-full shrink-0 ${statusColor}`} />
             <button
-              onClick={() => setActiveTab(profile.id)}
+              onClick={() => {
+                if (status === "disconnected" || status === "error") {
+                  connect(profile.id);
+                } else {
+                  setActiveTab(profile.id);
+                }
+              }}
               className="flex-1 hover:underline text-left"
               title={`${profile.name || profile.host}:${profile.port}`}
             >
