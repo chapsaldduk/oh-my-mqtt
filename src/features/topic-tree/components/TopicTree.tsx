@@ -1,7 +1,10 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTopicTree } from '@/hooks/useMessages.ts';
-import { ChevronRight, ChevronDown, Hash } from 'lucide-react';
+import { ChevronRight, ChevronDown, Hash, X } from 'lucide-react';
 import { cn } from '@/lib/cn.ts';
+import { createTopicMatcher, filterTopicTree } from '@/lib/topic-utils.ts';
+import { Input } from '@/components/ui/Input.tsx';
+import { Button } from '@/components/ui/Button.tsx';
 import type { TopicNode as TopicNodeType } from '@/types/mqtt.ts';
 
 /** Collect visible topic keys in display order. null = "All Topics". */
@@ -82,6 +85,43 @@ export function TopicTree() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const activeRef = useRef(false);
+  const [query, setQuery] = useState('');
+  const [useRegex, setUseRegex] = useState(false);
+  // Collapsed nodes within search results; reset when the search changes.
+  const [searchCollapsed, setSearchCollapsed] = useState<Set<string>>(new Set());
+
+  const trimmedQuery = query.trim();
+  const isSearching = trimmedQuery.length > 0;
+  const matcher = useMemo(
+    () => (isSearching ? createTopicMatcher(trimmedQuery, useRegex) : null),
+    [isSearching, trimmedQuery, useRegex],
+  );
+  const isFiltering = matcher !== null;
+  const isInvalid = isSearching && !isFiltering;
+  const displayTree = useMemo(
+    () => (matcher ? filterTopicTree(topicTree, matcher) : topicTree),
+    [topicTree, matcher],
+  );
+  const visibleExpanded = useMemo(() => {
+    if (!isFiltering) return expandedSet;
+    const expanded = collectAllTopics(displayTree.children);
+    for (const topic of searchCollapsed) expanded.delete(topic);
+    return expanded;
+  }, [isFiltering, displayTree, expandedSet, searchCollapsed]);
+
+  const toggleExpanded = useCallback(
+    (fullTopic: string) => {
+      const toggle = (prev: Set<string>) => {
+        const next = new Set(prev);
+        if (next.has(fullTopic)) next.delete(fullTopic);
+        else next.add(fullTopic);
+        return next;
+      };
+      if (isFiltering) setSearchCollapsed(toggle);
+      else setExpandedSet(toggle);
+    },
+    [isFiltering],
+  );
 
   // Auto-expand only NEW nodes when tree updates
   const [prevTree, setPrevTree] = useState(topicTree);
@@ -116,31 +156,28 @@ export function TopicTree() {
     const handler = (e: KeyboardEvent) => {
       if (!activeRef.current) return;
       if (!['ArrowUp', 'ArrowDown', 'ArrowRight', 'ArrowLeft'].includes(e.key)) return;
+      // Left/Right must move the caret in the search input.
+      const isHorizontal = e.key === 'ArrowRight' || e.key === 'ArrowLeft';
+      if (isHorizontal && e.target instanceof HTMLInputElement) return;
 
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
 
       // ArrowRight/Left: expand/collapse current node
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      if (isHorizontal) {
         if (!selectedTopic) return;
-        const node = findNode(topicTree.children, selectedTopic);
+        const node = findNode(displayTree.children, selectedTopic);
         if (!node || node.children.size === 0) return;
-        const isExpanded = expandedSet.has(selectedTopic);
-        if (e.key === 'ArrowRight' && !isExpanded) {
-          setExpandedSet((prev) => new Set(prev).add(selectedTopic));
-        } else if (e.key === 'ArrowLeft' && isExpanded) {
-          setExpandedSet((prev) => {
-            const next = new Set(prev);
-            next.delete(selectedTopic);
-            return next;
-          });
+        const isExpanded = visibleExpanded.has(selectedTopic);
+        if ((e.key === 'ArrowRight' && !isExpanded) || (e.key === 'ArrowLeft' && isExpanded)) {
+          toggleExpanded(selectedTopic);
         }
         return;
       }
 
       // ArrowUp/Down: navigate between visible topics
-      const visibleTopics = flattenVisible(topicTree.children, expandedSet);
+      const visibleTopics = flattenVisible(displayTree.children, visibleExpanded);
       if (visibleTopics.length === 0) return;
 
       const currentIdx = visibleTopics.indexOf(selectedTopic);
@@ -163,16 +200,7 @@ export function TopicTree() {
 
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [topicTree, expandedSet, selectedTopic, selectTopic]);
-
-  const toggleExpanded = useCallback((fullTopic: string) => {
-    setExpandedSet((prev) => {
-      const next = new Set(prev);
-      if (next.has(fullTopic)) next.delete(fullTopic);
-      else next.add(fullTopic);
-      return next;
-    });
-  }, []);
+  }, [displayTree, visibleExpanded, toggleExpanded, selectedTopic, selectTopic]);
 
   const setItemRef = useCallback((key: string, el: HTMLButtonElement | null) => {
     if (el) itemRefs.current.set(key, el);
@@ -185,6 +213,51 @@ export function TopicTree() {
         <h2 className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">
           Topics
         </h2>
+      </div>
+      <div className="px-2 py-1.5 border-b border-[var(--border)] space-y-1">
+        <div className="flex gap-1">
+          <Input
+            type="text"
+            placeholder={useRegex ? 'Regex pattern...' : 'Filter (+, #)...'}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSearchCollapsed(new Set());
+            }}
+            className="text-xs h-7 px-2"
+          />
+          <Button
+            variant={useRegex ? 'secondary' : 'ghost'}
+            size="icon"
+            onClick={() => {
+              setUseRegex(!useRegex);
+              setSearchCollapsed(new Set());
+            }}
+            title="Regex mode"
+            className="h-7 w-7 shrink-0 text-xs"
+          >
+            .*
+          </Button>
+          {query && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setQuery('');
+                setSearchCollapsed(new Set());
+              }}
+              title="Clear"
+              className="h-7 w-7 shrink-0"
+            >
+              <X size={12} />
+            </Button>
+          )}
+        </div>
+        {isInvalid && (
+          <p className="text-[10px] text-[var(--destructive)]">
+            {useRegex ? 'Invalid regex' : 'Invalid topic filter'}
+          </p>
+        )}
       </div>
       <div
         ref={scrollRef}
@@ -212,18 +285,23 @@ export function TopicTree() {
                 {totalMessages}
               </span>
             </button>
-            {Array.from(topicTree.children.values()).map((node) => (
+            {Array.from(displayTree.children.values()).map((node) => (
               <TopicNodeItem
                 key={node.name}
                 node={node}
                 depth={0}
                 selectedTopic={selectedTopic}
                 onSelect={selectTopic}
-                expandedSet={expandedSet}
+                expandedSet={visibleExpanded}
                 onToggleExpand={toggleExpanded}
                 setItemRef={setItemRef}
               />
             ))}
+            {isFiltering && displayTree.children.size === 0 && (
+              <p className="px-3 py-4 text-xs text-[var(--muted-foreground)] text-center">
+                No matching topics
+              </p>
+            )}
           </div>
         )}
       </div>
