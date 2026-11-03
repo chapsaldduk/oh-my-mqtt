@@ -4,6 +4,11 @@ import { registerMqttHandlers, type MqttHandlers } from "./mqtt-bridge";
 import { registerFileHandlers } from "./file-service";
 import { setupUpdater, setUpdaterWindow } from "./updater";
 
+if (process.argv.includes("--version")) {
+  console.log(app.getVersion());
+  process.exit(0);
+}
+
 let mainWindow: BrowserWindow | null = null;
 let mqttHandlers: MqttHandlers | null = null;
 

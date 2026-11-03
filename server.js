@@ -5,8 +5,16 @@ import net from "net";
 import tls from "tls";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { readFileSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+if (process.argv.includes("--version")) {
+  const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"));
+  console.log(pkg.version);
+  process.exit(0);
+}
+
 const app = express();
 const server = createServer(app);
 
