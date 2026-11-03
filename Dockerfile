@@ -20,8 +20,10 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/server.js ./server.js
 COPY --from=build /app/LICENSE ./LICENSE
 
-RUN echo '{"type":"module","dependencies":{"express":"^4","ws":"^8"}}' > package.json && npm install
+COPY --from=build /app/package.json /tmp/src-package.json
+RUN node -e 'const v=require("/tmp/src-package.json").version;require("fs").writeFileSync("package.json",JSON.stringify({version:v,type:"module",dependencies:{express:"^4",ws:"^8"}}))' \
+  && rm /tmp/src-package.json && npm install
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["node", "server.js"]
